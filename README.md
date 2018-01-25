@@ -13,6 +13,7 @@ Simple Following of Loop BG, IOB, Active Carbs and Basal Rate
 -- Safari Has a User Setting
 - If You Run index.html from a Static Website You Need to Enable cors In NightScout Settings and Add the URL Of Your Website
 - I Am NOT Planning on Major Updates / Fixes as This is An Interim Measure Before Folks Develop a Real Follower App for Loop
+- Basal Rates Shown are ONLY Those Enacted.  Therefore if You Are Not Always Enacting Temps per @elnjensen Modificaitons You Will Get a Very Sparse Graph Sorry :)  If Someone Wants to Pull In and Create Basal Data From NS Profiles That Would Be Great.
   
   
  # Credits
