@@ -5,6 +5,7 @@ Simple Following of Loop BG, IOB, Active Carbs and Basal Rate
 - Graphs Do NOT Spline Thru Missing Data Points to Avoid Rendering False Information
 - Automatically Refreshes At User Defined Interval
 - Enter https://yoururl At the Bottom of the App - Saves With Local Storage
+- LoopDate and DeviceDate Are the "created_at" Dates from Uploads from Loop to NS
   
 # Issues
 - Safari on iOS Does NOT Seem to Save User URL Via Local Storage - Not Sure Why - I Use Chrome on iOS
