@@ -1,0 +1,624 @@
+
+<head>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
+
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+<script src="https://code.highcharts.com/stock/modules/exporting.js"></script>
+    
+ <!-- Include meta tag to ensure proper rendering and touch zooming -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Include jQuery Mobile stylesheets -->
+  <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+
+  <script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>    
+    
+<style type="text/css">
+button {
+     width: 20%;
+     height: 100%;
+}
+.tftable {font-size:12px;color:#333333;width:98%;border-width: 1px;border-color: #729ea5;border-collapse: collapse;}
+.tftable th {width:25%;align:center;font-size:14px;background-color:#acc8cc;border-width: 1px;padding: 2px;border-style: solid;border-color: #729ea5;text-align:center;}
+.tftable tr {background-color:#d4e3e5;}
+.tftable td {text-align:center;font-size:14px;border-width: 1px;padding: 2px;border-style: solid;border-color: #729ea5;}
+.tftable tr:hover {background-color:#ffffff;}
+h1 {text-align:center;font-size:16x;}
+
+ h1 {text-align:center;font-size:16x;}
+h1 {text-align:center;font-size:16x;}
+    
+
+.ui-title {
+    margin: 0.6em 10% 0.8em !important;
+}
+</style>
+	
+</head>
+<body>
+<div data-role="page" id="pageone">
+  <div data-role="header">
+  <h1>Loop Tracker 0.1</h1>
+  </div>
+    
+
+    Lookback Hours<br>
+    <input type="range" min="1" max="24" value="3" step="1" onchange="showValue(this.value)" id="displayhours" />
+<!--<span id="range"> 4</span> -->
+    
+
+    
+<button id="reload" onclick="execute()">LoadData</button>
+  <div data-role="main" class="ui-content">
+ 
+  <p><table class="tftable" border="1" align="center">
+<tr><th align="center">DeviceDate</th><th>LoopDate</th><th align="center"> RL dB</th><th align="center"> PhoneBat %</th></tr>
+<tr><td id="devicedate"> </td><td id="loopdate"></td><td id="rldb"><td id="phonebat"></tr>
+</table> 
+
+<table class="tftable" border="1" align="center">
+<tr><th align="center">Reservoir Level (U)</th><th align="center">Velocity (mg/dl.min)</th><th align="center">60 min Vel Bg (mg/dl) </th><th align="center">Final BG IOB (mg/dl) </th></tr>
+    
+<tr><td id="reslevel"> </td><td id="velocity"></td><td id="bgpredv"></td><td id="predbgiob"></td></tr>
+</table>
+
+      
+     
+      </p>
+  </div>
+
+
+
+
+<div id="containerBG" style="width:100%; height:200px;"></div>
+<div id="container2" style="width:100%; height:200px;"></div>
+<div id="containerCOB" style="width:100%; height:200px;"></div>
+<div id="container3" style="width:100%; height:200px;"></div> 
+
+<p>
+    User Settings
+    </p>
+
+<div id="urlinput">
+<input type="text" id="inputURL"/>
+<button id="trigger" onclick="saveURL()" >Save NightScout URL</button>
+</div>
+ 
+<div >
+Refresh Rate (min)<br>
+    <input type="range" min="1" max="30" value="2" step="1"  id="refreshrate" />
+
+  <script type="text/javascript">
+function showValue(newValue)
+{
+	//document.getElementById("range").innerHTML=newValue+" min";
+}
+      
+      function showrefresh(newValue)
+{
+	//document.getElementById("range").innerHTML=newValue+" min";
+}
+	var lookback=2
+
+
+	var ONE_HOUR = 3600000;
+	var ONE_MINUTE = 60000.0;
+	var FIVE_MINUTES = 300000;
+	var TEN_MINUTES =  600000;
+	var origdata=[];
+    var pumpstate=[];
+    var set_bolus=[];
+	var data=[];
+    var data2=[];
+    var data3=[];
+    var iob=[];
+    var cob=[];
+    var cobdisplay=[];
+    var iobdisplay=[];
+    var basaldisplay=[];
+    var basals=[];
+    var displayhours=4;
+      var displayDate = 0;
+ 
+
+
+      function saveURL() {
+    var input = document.getElementById("inputURL").value;
+    localStorage.setItem("userURL",document.getElementById("inputURL").value );
+    console.log("test get ",localStorage.getItem("userURL"))
+      }
+
+	
+	function execute() {
+
+    displayhours=document.getElementById("displayhours").value
+    coreURL = localStorage.getItem("userURL")
+    var d = new Date() 
+    //grab at least 24 hours
+    var now=new Date();
+    var searchDate=new Date();
+    searchDate.setHours(now.getHours()-24);
+    displayDate = new Date()
+    displayDate.setHours(now.getHours()-displayhours)
+
+    var endpoint_device=coreURL+'/api/v1/devicestatus.json?count=1000&find[created_at][$gte]='+searchDate.toISOString()
+    var endpoint_sgv=coreURL+'/api/v1/entries.json?count=500&find[sgv][$gte]=40&find[date][$gte]='+ Date.parse(searchDate)
+    var endpoint_treatments=coreURL+'/api/v1/treatments.json?count=1000&find[eventType]=Temporary%20Target&find[created_at][$gte]='+searchDate.toISOString()
+
+
+	$.ajax({
+		type: 'GET',
+		url: endpoint_device,
+		async: false,
+		dataType: 'json',
+		crossDomain: true,
+		success: function(data)
+		{
+
+			datahandler(data.reverse())
+	
+		},
+		error: function(e)
+		{
+		   alert("Website Error "+e.message);
+		}
+	})
+
+    $.ajax({
+		type: 'GET',
+		url:endpoint_sgv ,
+		async: false,
+		dataType: 'json',
+		crossDomain: false,
+		success: function(data2)
+		{
+
+			datahandler2(data2.reverse())
+	
+		},
+		error: function(e)
+		{
+		   alert("Website Error "+e.message);
+		}
+	})
+    
+
+    
+    
+
+        
+var d = new Date()
+var n = d.getTimezoneOffset();
+//force timezone
+Highcharts.setOptions({
+global: {
+timezoneOffset:n}
+});    
+        
+    $('#containerBG').highcharts({
+       global: { useUTC: false },
+       title: { text: null},
+       legend: {enabled:false},
+       subtitle: {text:"Blood Glucose " + origdata[origdata.length-1][1],
+                 align: "left"},
+       
+       chart: {
+           type: 'scatter',
+       },
+        xAxis: {
+            type: 'datetime',
+            useUTC: false,
+            min:Date.parse(displayDate),
+            max:now
+          
+            
+        },
+
+       yAxis: {
+           title: { text: null}
+           
+       },
+        plotOptions: {
+        series: {
+            marker: {
+                radius: 2
+            }
+        }
+    },
+
+        series: [{
+            name: 'BG',
+            data: origdata,
+            color: 'rgba(0,175,255, 1)'
+        }, 
+//        {
+//            name: 'Range',
+//            data: [$scope.loadData.timestamp, $scope.loadData.min, $scope.loadData.max],
+//            type: 'arearange'
+//        }
+                ]
+    });     
+        
+   $('#container2').highcharts({
+       global: { useUTC: false },
+       title: { text: null},
+       legend: {enabled:false},
+       subtitle: {text:"Active Insulin " + iob[iob.length-1][1].toFixed(1) + " U",
+                 align: "left"},
+       
+       chart: {
+           type: 'area',
+       },
+        xAxis: {
+            type: 'datetime',
+            useUTC: false,
+            min:Date.parse(displayDate),
+            max:now
+            
+        },
+       yAxis: {
+           title: { text: null}
+           
+       },
+            plotOptions: {
+                series:{
+                    connectNulls: false,
+                }
+            },
+
+        series: [{
+            name: 'IOB',
+            data: iobdisplay,
+            color: 'rgba(255,165,0, 1)',
+        }, 
+                ]
+    });     
+        
+        
+        
+ $('#containerCOB').highcharts({
+       global: { useUTC: false },
+       title: { text: null},
+       legend: {enabled:false},
+       subtitle: {text:"Active Carbs "+ cob[cob.length-1][1].toFixed(1) +  "g",
+                 align: "left"},
+       
+       chart: {
+           type: 'area',
+       },
+        xAxis: {
+            type: 'datetime',
+            useUTC: false,
+            min:Date.parse(displayDate),
+            max:now,
+            startontick:true
+            
+        },
+       yAxis: {
+           title: { text: null},
+           min:0.0
+           
+       },
+     plotOptions: {
+                series:{
+                    connectNulls: false,
+                }
+            },
+
+        series: [{
+            name: 'cob',
+            data: cobdisplay,
+            color: 'rgba(0,155,0, 1)',
+        }, 
+//        {
+//            name: 'Range',
+//            data: [$scope.loadData.timestamp, $scope.loadData.min, $scope.loadData.max],
+//            type: 'arearange'
+//        }
+                ]
+    });     
+        
+        $('#container3').highcharts({
+   // Highcharts.stockChart('container3', {
+       global: { useUTC: false },
+       title: { text: null},
+       legend: {enabled:false},
+       subtitle: {text:"Basal Rate " + pumpstate[pumpstate.length-1][1].toFixed(1) + " U/hr",
+                 align: "left"},
+
+        xAxis: {
+            type: 'datetime',
+            useUTC: false,
+            min:Date.parse(displayDate),
+            max:now
+            
+        },
+       yAxis: {
+           title: { text: null}
+           
+       },
+
+            plotOptions: {
+                series:{
+                    connectNulls: false
+                }
+            },
+
+        series: [{
+            name: 'Basal Rate',
+            data: basaldisplay,
+            color: 'rgba(255,165,0, 1)',
+            type: 'line',
+            step: 'true'
+        }, 
+
+                ]
+    });     
+        
+    
+     }
+	
+	function datahandler(data) {
+        var loop = []
+        var device = []
+        
+        
+//split and sort entries
+        for (var i in data) {
+            if (data[i].loop != undefined) {loop.push(data[i])} else {device.push(data[i])}
+        }
+		
+        loop.sort(function(a, b) {
+    var dateA = new Date(a.created_at), dateB = new Date(b.created_at);
+    return dateA - dateB;
+});
+        
+        device.sort(function(a, b) {
+    var dateA = new Date(a.created_at), dateB = new Date(b.created_at);
+    return dateA - dateB;
+});
+      
+
+        
+		for (i=0;i<loop.length;i++) {
+
+            var currentTime = new Date().getTime()
+            if (loop[i].loop.iob != undefined) {
+                var d = new Date(loop[i].loop.iob.timestamp)
+                var unixtime = Math.round((d).getTime())
+                //if 
+                iob.push([unixtime,loop[i].loop.iob.iob]) 
+                                                                };
+            if (loop[i].loop.cob != undefined) {
+                var d = new Date(loop[i].loop.cob.timestamp)
+                cob.push([Math.round((d).getTime() ),loop[i].loop.cob.cob]) 
+                                                                };
+                //iob[i]=[d,loop[i].loop.iob.iob]};
+            if (loop[i].loop.enacted != undefined) {
+                var d = new Date(loop[i].loop.enacted.timestamp)
+
+                pumpstate.push([Math.round((d).getTime() ),loop[i].loop.enacted.rate])
+            }
+
+		}
+        
+    iobdisplay=iob.concat(fillData(iob,ONE_MINUTE*5,ONE_MINUTE*16))    
+    iobdisplay.sort(function(a, b) {
+    var dateA = a[0], dateB = b[0];
+    return dateA - dateB;
+});
+    cobdisplay=cob.concat(fillData(cob,ONE_MINUTE*5,ONE_MINUTE*16))  
+    cobdisplay.sort(function(a, b) {
+    var dateA = a[0], dateB = b[0];
+    return dateA - dateB;
+});
+   basaldisplay = pumpstate.concat(fillData(pumpstate,ONE_MINUTE*5,ONE_MINUTE*31))
+    basaldisplay.sort(function(a, b) {
+    var dateA = a[0], dateB = b[0];
+    return dateA - dateB;
+});
+        
+        
+
+        if (typeof device[device.length-1].pump.reservoir != undefined) {
+            document.getElementById('reslevel').innerHTML = device[device.length-1].pump.reservoir;
+        }
+        
+        else {document.getElementById('reslevel').innerHTML = "N/A"}
+        
+        if (typeof device[device.length-1].radioAdapter.RSSI != undefined) {
+            document.getElementById('rldb').innerHTML = device[device.length-1].radioAdapter.RSSI;
+        }
+        
+        else {document.getElementById('phonebat').innerHTML = "N/A"}
+        
+        if (typeof device[device.length-1].uploader.battery != undefined) {
+            document.getElementById('phonebat').innerHTML = device[device.length-1].uploader.battery;
+        }
+        
+        else {document.getElementById('rldb').innerHTML = "N/A"}
+        
+        if (typeof device[device.length-1].created_at != undefined) {
+            var devicedate=new Date(device[device.length-1].created_at);
+
+            document.getElementById('devicedate').innerHTML = devicedate.toLocaleTimeString().fontcolor(timecolor(devicedate))
+        }
+        
+        else {document.getElementById('devicedate').innerHTML = "N/A".fontcolor("red")}
+        
+        if (typeof loop[loop.length-1].created_at != undefined) {
+            var loopdate=new Date(loop[loop.length-1].created_at);
+            
+            document.getElementById('loopdate').innerHTML = loopdate.toLocaleTimeString().fontcolor(timecolor(loopdate));
+           
+        }
+        
+        else {document.getElementById('loopdate').innerHTML = "N/A"}
+    
+		
+        var myDate=new Date(data[data.length-1].date);
+        
+
+  if (typeof loop[loop.length-1].loop.predicted != 'undefined') 
+  {var values = loop[loop.length-1].loop.predicted.values;
+    var predbglabel=values[values.length-1]} else {var predbglabel="undefined"}      
+            var predbgioblabel=predbglabel.toString();
+document.getElementById('predbgiob').innerHTML = predbgioblabel;
+
+		
+	} //end data handler
+
+      function datahandler2(data) {
+
+		c=0
+		
+		
+
+          var j=0
+		for (i=0;i<data.length;i++) {
+	
+                    origdata[i]=[data[i].date,parseInt(data[i].sgv)]
+                    
+
+		}
+          
+          var sgvs = [data[data.length-1],data[data.length-2],data[data.length-3]]
+          var velocity = velocity_cf2(sgvs)
+          var bgpred60 = predictbgv(origdata[origdata.length-1][1],velocity,60)
+          
+           if (velocity > -1000) {
+            document.getElementById('velocity').innerHTML = velocity.toFixed(1);
+            document.getElementById('bgpredv').innerHTML = bgpred60.toFixed(1);
+        }
+        
+        else {
+         document.getElementById('velocity').innerHTML = "N/A";
+            document.getElementById('bgpredv').innerHTML = "N/A";
+        }
+          
+
+		
+	} //end data handler
+
+
+      
+      function timecolor(mydate) {
+        var deltat = ((new Date).getTime() - mydate.getTime())/ONE_MINUTE
+        var fc = "red"
+        if (deltat > 15) {fc="red"} 
+          else 
+          {if (deltat > 9) {fc="yellow"} else  {fc="green"} }
+        return fc    
+        }
+
+  function velocity_cf2 (data) {
+		//linear fit to 3 data points get slope (ie velocity)
+		var v;
+		var i=0;
+
+			if ((data[i].date-data[i+2].date)/ONE_MINUTE<10.1) {n=3} else
+				if ((data[i].date-data[i+1].date)/ONE_MINUTE<10.1) {n=2} else 
+				{n=0}
+
+		
+		if (n!=0) {
+			xm=0.0
+			ym=0.0
+			for (j=0;j<n;j++) {
+			
+				xm=xm+data[i+j].date/ONE_MINUTE
+				ym=ym+data[i+j].sgv
+			}
+			xm=xm/n
+			ym=ym/n
+			c1=0.0
+			c2=0.0
+			for (j=0;j<n;j++) {
+				t=data[i+j].date/ONE_MINUTE
+				c1=c1+(t-xm)*(data[i+j].sgv-ym)
+				c2=c2+(t-xm)*(t-xm)
+
+			}
+			v=c1/c2
+			
+			if (v>3.0) {v=3.0}
+			if (v<-3.0) {v=-3.0}
+			
+	   
+			
+		//	console.log(v)
+		}
+		//need to decide what to return if there isnt enough data
+		//return a false number 
+		
+		else {v=-1001.0}
+			
+			return v
+	}
+	
+	
+	
+function predictbgv (bg,v,timewindow) {
+	
+return bg+(1.0*v*timewindow)
+	
+	}    
+      
+      
+      
+      
+      
+function fillData(d, interval, gap) {
+   
+    
+    var total = d.length
+    var wnull = []
+    var time0 = Date.parse(displayDate)
+//    //handle first gap
+//    if (d[0][0]-time0 > gap*2) {
+//            var n = Math.round(deltat / interval)
+//            for (j=1;j<n;j++) {
+//               wnull.push([d[0][0]+j*interval,null])
+//            }
+//    }
+    for (i=1;i<total-3;i++) {
+        var deltat = d[i][0] - d[i-1][0]
+        if (deltat > gap) {
+            var n = Math.round(deltat / interval)
+            for (j=1;j<n;j++) {
+               wnull.push([d[i-1][0]+j*interval,null])
+            }
+            
+        }
+        
+        
+        
+    }
+
+
+    return wnull;
+}
+  
+      
+	   
+//html output	
+
+
+
+
+	$(document).ready(function(){
+        var refreshId = setInterval( function() 
+    {execute()},ONE_MINUTE*document.getElementById("refreshrate").value);
+        document.getElementById('inputURL').value = localStorage.getItem("userURL")
+	    $("reload").click(function(){
+	        execute();
+        
+
+            
+	    });
+	});
+		
+		
+	
+		
+  </script>
+</body>
